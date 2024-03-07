@@ -854,6 +854,11 @@ class Flow(FlowBase):
             if node.connection:
                 connection_names.add(node.connection)
                 continue
+
+            # TODO: should we be aware of CSharp in contracts?
+            if self.program_language == FlowLanguage.CSharp and node.type == ToolType.LLM:
+                connection_names.add(node.inputs.get("connection").value)
+                continue
             if node.type == ToolType.PROMPT or node.type == ToolType.LLM:
                 continue
             logger.debug(f"Try loading connection names for node {node.name}.")

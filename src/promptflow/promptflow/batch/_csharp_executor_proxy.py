@@ -137,6 +137,14 @@ class CSharpExecutorProxy(CSharpBaseExecutorProxy):
             chat_output_name=chat_output_name,
             enable_stream_output=kwargs.get("enable_stream_output", False),
         )
+        executor_proxy._initialize(
+            yaml_path=flow_file.as_posix(),
+            assembly_folder=working_dir.as_posix(),
+            connections=connections,
+            environment_variables=kwargs.get("environment_variables", {}),
+            initialize_session_id=kwargs.get("initialize_session_id", str(uuid.uuid4())),
+        )
+
         try:
             await executor_proxy.ensure_executor_startup(init_error_file)
         finally:

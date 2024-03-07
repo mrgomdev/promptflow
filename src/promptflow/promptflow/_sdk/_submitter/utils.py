@@ -24,7 +24,7 @@ import pydash
 from dotenv import load_dotenv
 from pydash import objects
 
-from promptflow._constants import STREAMING_ANIMATION_TIME
+from promptflow._constants import STREAMING_ANIMATION_TIME, FlowLanguage
 from promptflow._sdk._constants import (
     ALL_CONNECTION_TYPES,
     DEFAULT_VAR_ID,
@@ -121,7 +121,12 @@ def overwrite_connections(flow_dag: dict, connections: dict, working_dir: PathLi
             try:
                 connection = connection_dict.get(ConnectionFields.CONNECTION)
                 if connection:
-                    node[ConnectionFields.CONNECTION] = connection
+                    # TODO: refactor this
+                    if executable_flow.program_language == FlowLanguage.CSharp:
+                        # connection of llm node is in inputs for csharp
+                        node[INPUTS][ConnectionFields.CONNECTION] = connection
+                    else:
+                        node[ConnectionFields.CONNECTION] = connection
                 deploy_name = connection_dict.get(ConnectionFields.DEPLOYMENT_NAME)
                 if deploy_name:
                     node[INPUTS][ConnectionFields.DEPLOYMENT_NAME] = deploy_name

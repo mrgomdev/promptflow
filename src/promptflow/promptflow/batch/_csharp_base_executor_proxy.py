@@ -4,6 +4,8 @@
 from pathlib import Path
 from typing import Any, List, Mapping, Optional
 
+import httpx
+
 from promptflow.batch._base_executor_proxy import APIBasedExecutorProxy
 from promptflow.executor._result import AggregationResult
 
@@ -44,12 +46,9 @@ class CSharpBaseExecutorProxy(APIBasedExecutorProxy):
             "dotnet",
             EXECUTOR_SERVICE_DLL,
             "--execution_service",
+            "--light_mode",
             "--port",
             port,
-            "--yaml_path",
-            yaml_path,
-            "--assembly_folder",
-            assembly_folder,
             "--log_path",
             log_path,
             "--log_level",
@@ -57,3 +56,26 @@ class CSharpBaseExecutorProxy(APIBasedExecutorProxy):
             "--error_file_path",
             error_file_path,
         ]
+
+    def _initialize(self, yaml_path, assembly_folder, connections, environment_variables, initialize_session_id):
+        """Initialize the executor"""
+        # call initialize api to set up the execution service
+        url = self.api_endpoint + "/initialize"
+        payload = {
+            "yaml_path": yaml_path,
+            "assembly_folder": assembly_folder,
+            "connections": {
+                k: {
+                    "api_key": v["value"].get("api_key"),
+                    "api_base": v["value"].get("api_base"),
+                    "type": "AzureOpenAI",
+                }
+                for k, v in (connections or {}).items()
+            },
+            "environment_variables": environment_variables,
+            "initialize_session_id": initialize_session_id,
+        }
+
+        with httpx.Client() as client:
+            response = client.post(url, json=payload)
+            response.raise_for_status()
