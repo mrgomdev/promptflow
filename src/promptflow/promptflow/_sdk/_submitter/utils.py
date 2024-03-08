@@ -212,37 +212,37 @@ class SubmitterHelper:
 
     @staticmethod
     def resolve_connections(flow: Flow, client=None, connections_to_ignore=None) -> dict:
-        # TODO 2856400: use resolve_used_connections instead of this function to avoid using executable in control-plane
         from promptflow._sdk.entities._eager_flow import EagerFlow
-
-        from .._pf_client import PFClient
 
         if isinstance(flow, EagerFlow):
             # TODO(2898247): support prompt flow management connection for eager flow
             return {}
 
-        client = client or PFClient()
-        with _change_working_dir(flow.code):
-            executable = ExecutableFlow.from_yaml(flow_file=flow.path, working_dir=flow.code)
-        executable.name = str(Path(flow.code).stem)
-
-        return get_local_connections_from_executable(
-            executable=executable, client=client, connections_to_ignore=connections_to_ignore
-        )
-
-    @staticmethod
-    def resolve_used_connections(flow: ProtectedFlow, tools_meta: dict, client, connections_to_ignore=None) -> dict:
         from .._pf_client import PFClient
 
         client = client or PFClient()
-        connection_names = SubmitterHelper.get_used_connection_names(tools_meta=tools_meta, flow_dag=flow._data)
-        connections_to_ignore = connections_to_ignore or []
-        result = {}
-        for n in connection_names:
-            if n not in connections_to_ignore:
-                conn = client.connections.get(name=n, with_secrets=True)
-                result[n] = conn._to_execution_connection_dict()
-        return result
+
+        if flow.language == FlowLanguage.CSharp:
+            from promptflow.batch import CSharpExecutorProxy
+
+            tools_meta = CSharpExecutorProxy.get_tool_metadata(
+                flow_file=flow.flow_dag_path,
+                working_dir=flow.code,
+            )
+            return SubmitterHelper.resolve_connection_names(
+                connection_names=SubmitterHelper.get_used_connection_names(tools_meta=tools_meta, flow_dag=flow._data),
+                client=client,
+                connections_to_ignore=connections_to_ignore,
+            )
+        else:
+            # TODO: avoid touch ExecutableFlow here
+            with _change_working_dir(flow.code):
+                executable = ExecutableFlow.from_yaml(flow_file=flow.path, working_dir=flow.code)
+            executable.name = str(Path(flow.code).stem)
+
+            return get_local_connections_from_executable(
+                executable=executable, client=client, connections_to_ignore=connections_to_ignore
+            )
 
     @staticmethod
     def get_used_connection_names(tools_meta: dict, flow_dag: dict):
@@ -288,9 +288,11 @@ class SubmitterHelper:
         update_dict_value_with_connections(built_connections=connections, connection_dict=environment_variables)
 
     @staticmethod
-    def resolve_connection_names(connection_names, client, raise_error=False):
+    def resolve_connection_names(connection_names, client, *, raise_error=False, connections_to_ignore=None):
         result = {}
         for n in connection_names:
+            if connections_to_ignore and n in connections_to_ignore:
+                continue
             try:
                 conn = client.connections.get(name=n, with_secrets=True)
                 result[n] = conn._to_execution_connection_dict()
